@@ -1,0 +1,154 @@
+---
+title: "Assignment 4 : Tidy/Transform Data"
+author: "Khyati Naik"
+date: "`r Sys.Date()`"
+---
+
+### Read libraries
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+```
+
+### Read CSV file from github
+
+```{r}
+ip_fl <- "https://raw.githubusercontent.com/Naik-Khyati/tidy_transform_data/main/data/arr_delays.csv"
+raw_dt <- read.csv(ip_fl, header=FALSE, sep=",", stringsAsFactors=FALSE)
+head(raw_dt)
+```
+
+### Remove fourth row from data frame, as it just has null values
+
+```{r}
+raw_dt <- raw_dt[-4,]
+```
+
+### Rename columns based on first row and than delete the first row
+
+```{r}
+# add values in 1st row for airlines and arrival status. so that we can use first row to name columns for the data frame
+
+raw_dt[1,1] <- 'airline'
+raw_dt[1,2] <- 'arr_status'
+
+# rename columns based on first row
+names(raw_dt) <- raw_dt[1,]
+
+# delete the first row
+raw_dt <- raw_dt[-1,]
+head(raw_dt)
+```
+
+### Fill values for airline in rows two and four
+
+```{r}
+raw_dt[2,1] <- 'ALASKA'
+raw_dt[4,1] <- 'AM WEST'
+head(raw_dt)
+```
+
+
+### Convert the data from long to wide based on arrival cities
+
+```{r}
+cln_dt <- raw_dt %>% gather("arr_city","count_flight", 3:7)
+glimpse(cln_dt)
+```
+
+### Convert flight count column to integer
+
+```{r}
+# remove commas from the string
+cln_dt$count_flight <- gsub(",", "", as.character(cln_dt$count_flight))
+#convert the column to numeric     
+cln_dt$count_flight <- as.numeric(cln_dt$count_flight)
+```
+
+### Convert data from long to wide based on arrival status to perform analysis
+
+```{r}
+cln_long_dt <- cln_dt %>% spread(arr_status,count_flight)
+```
+
+### Add total flights column in the data frame
+
+```{r}
+cln_long_dt <- cln_long_dt %>% mutate(tot_flights = `on time`+delayed)
+```
+
+### Add arrival delay share column in the data frame
+
+```{r}
+cln_long_dt <- cln_long_dt %>%
+  mutate(arr_delay_share = delayed/tot_flights)
+```
+
+### Prepare data to plot total flights by airline chart
+
+```{r}
+cln_long_dt_city_share <- cln_long_dt %>% group_by (airline) %>% 
+  mutate(airline_share = tot_flights / sum(tot_flights))
+```
+
+### Plot total flights by airline showing arrival city share
+
+```{r}
+ggplot(cln_long_dt_city_share,aes(x = airline, y = tot_flights,fill=arr_city)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = paste0(round(airline_share * 100), '%')),
+            position = position_stack(vjust = 0.5))
+```
+
+
+Above plot shows total flights by airlines. Colors represent different arrival cities. Labels show share of arrival cities for each airline. 
+  
+We observe that AM west has above 7,000 flights whereas Alaska airlines has close to 4,000 flights only.  
+  
+We also observe that most (73%) of AM WEST flights are arriving in Phoenix. On the other hand, only 6% flights from ALASKA airlines are arriving in Phoenix.  
+  
+We also observe that most (57%) of ALASKA flights are arriving in Seattle. On the other hand, only 4% flights from AM WEST airlines are arriving in Seattle  
+
+
+### Plot delayed flights by airline showing delayed share by arrival city
+
+```{r}
+ggplot(cln_long_dt,aes(x = airline, y = delayed,fill=arr_city)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = paste0(round(arr_delay_share * 100), '%')),
+            position = position_stack(vjust = 0.5))
+```
+
+Above plot shows delayed flights counts by airlines. Colors represent different arrival cities. Labels represent the delay share by city for each airline. 
+  
+We observe that AM west has close to 800 flights whereas Alaska airlines has about 500 delayed flights.  
+  
+We also observe that delayed share is the lowest for Phoenix for both airlines when compared to other arrival cities. Delayed share for Phoenix is 5% for ALASKA and 8% for AM WEST.
+  
+Similarly, we observe that delayed share is the highest for San Francisco and Seattle for both airlines when compared to other arrival cities.  
+  
+Moreover, we note that arrival delay share by city is lower for ALASKA for all cities when compared to AM WEST.
+
+### Prepare data for arrival delay by airlines chart
+
+```{r}
+cln_long_dt_all <- cln_long_dt %>% group_by (airline) %>% 
+  summarize(delayed=  sum(delayed),tot_flights = sum(tot_flights)) %>% ungroup() %>%
+  mutate(arr_delay_share = delayed/tot_flights)
+```
+
+### Plot arrival delay by airlines chart
+
+```{r}
+ggplot(cln_long_dt_all,aes(x = airline, y = delayed)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = paste0(round(arr_delay_share * 100), '%')),
+            position = position_stack(vjust = 0.5))
+```
+
+Above plot shows that delayed flights by count is higher for AM west but we also observe that ALASKA has higher delayed flight share compared to AM WEST.
+
+## Conclusion
+
+Most (73%) flights from AM WEST are arriving in Phoenix which has lower share of arrival delays. 
+Similarly, most (73%) flights from ALASKA are arriving in San Francisco and Seattle which has very high share of arrival delays. Due to this difference in the arrival flight mix, ALASKA has higher delayed share of flights compared to AM WEST.
